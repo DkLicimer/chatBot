@@ -17,18 +17,20 @@ from config import (SMTP_SERVER, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD,
 from keyboards import get_confirmation_kb
 from states import ReportForm
 
+
 def escape_html(text: str) -> str:
     if not isinstance(text, str):
         return ""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 
 def send_email_sync(msg: MIMEMultipart):
     with smtplib.SMTP_SSL(SMTP_SERVER, int(SMTP_PORT)) as server:
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
 
+
 async def send_email_notification(data: dict, file_content: BytesIO | None, file_name: str | None):
-    # ... (код функции send_email_notification без изменений)
     if not all([SMTP_SERVER, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD, RECIPIENT_EMAIL]):
         logging.warning("Настройки SMTP для отправки email не сконфигурированы в .env. Письмо не будет отправлено.")
         return
@@ -60,6 +62,14 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
             <p><strong>От пользователя:</strong> {user_info}</p>
             <h3>Описание проблемы:</h3>
             <p>{description.replace(chr(10), "<br>")}</p>
+"""
+
+        # --- НОВОЕ: Грызуны ---
+        if data.get('rodents') is not None:
+            rodents_text = 'Да' if data.get('rodents') else 'Нет'
+            html_body += f"<p><strong>Наличие грызунов:</strong> {rodents_text}</p>"
+
+        html_body += f"""
             <h3>Контактные данные:</h3>
             <ul>
                 <li><strong>Имя:</strong> {user_name}</li>
@@ -93,7 +103,6 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
 
 
 async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot):
-    # ... (код функции show_confirmation_summary без изменений)
     await state.set_state(ReportForm.awaiting_confirmation)
     data = await state.get_data()
 
@@ -128,7 +137,7 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
             pass  # Тоже не страшно
     # --- КОНЕЦ НОВОЙ ЛОГИКИ ОЧИСТКИ ---
 
-    # 4. Форматируем данные для вывода (как и раньше)
+    # 4. Форматируем данные для вывода
     safe_type = escape_html(data.get('complaint_type', 'Не указан'))
     safe_description = escape_html(data.get('description', 'Не указано'))
 
@@ -166,15 +175,29 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
 
     contact_status = "\n".join(contact_status_parts)
 
+    # ---  Грызуны ---
+    rodents_status = ""
+    rodents_data = data.get('rodents')
+    if rodents_data is not None:
+        rodents_status = f"<b>🐹 Наличие грызунов:</b> {'Да' if rodents_data else 'Нет'}"
+
+
     summary_text_parts = [
         "<b>🔍 Пожалуйста, проверьте и подтвердите вашу заявку:</b>\n",
         f"<b>Тип:</b> {safe_type}",
         f"<b>Медиа:</b> {media_status}",
         f"<b>Описание:</b>\n{safe_description}",
+    ]
+
+    # Добавление грызунов, если они есть
+    if rodents_status:
+        summary_text_parts.append(rodents_status)
+
+    summary_text_parts.extend([
         f"<b>Местоположение:</b> {loc_status}",
         "\n<b>Контакты:</b>",
         contact_status
-    ]
+    ])
     summary_text = "\n\n".join(summary_text_parts)
 
     # 5. Отправляем НОВОЕ медиа (если есть) и СОХРАНЯЕМ ID
@@ -189,17 +212,16 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
             logging.error(f"Failed to send media in summary: {e}")
             summary_text += "\n\n❗️ (Не удалось загрузить превью медиа)"
 
-    # --- НОВОЕ: Сохраняем ID нового медиа в FSM ---
+    # ---  Сохраняем ID нового медиа в FSM ---
     await state.update_data(
         media_summary_message_id=(new_media_msg.message_id if new_media_msg else None)
     )
 
-    # 6. Отправляем НОВЫЙ текстовую сводку
+    # 6. Отправляем НОВУЮ текстовую сводку
     await bot.send_message(chat_id, summary_text, reply_markup=get_confirmation_kb())
 
 
 async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
-    # ... (код функции send_final_report без изменений)
     await bot.send_chat_action(chat_id=call.from_user.id, action=ChatAction.TYPING)
 
     data = await state.get_data()
@@ -228,6 +250,12 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
         caption_parts.append("<i>Обратная связь не требуется</i>")
 
     caption_parts.append(f"<b>Описание:</b>\n{safe_description}")
+
+    # ---Грызуны ---
+    rodents_data = data.get('rodents')
+    if rodents_data is not None:
+        rodents_text = 'Да' if rodents_data else 'Нет'
+        caption_parts.append(f"<b>🐹 Наличие грызунов:</b> {rodents_text}")
 
     location_caption_part = ""
     if data.get('latitude'):

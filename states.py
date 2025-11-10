@@ -5,6 +5,7 @@ class ReportForm(StatesGroup):
     awaiting_type = State()
     awaiting_media = State()
     awaiting_description = State()
+    awaiting_rodents_choice = State() 
     awaiting_location_choice = State()
     awaiting_location_geo = State()
     awaiting_location_address = State()

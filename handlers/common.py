@@ -5,14 +5,14 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 
 from keyboards import (get_start_kb, get_back_cancel_kb, get_location_choice_kb,
-                       get_feedback_choice_kb)
+                       get_feedback_choice_kb, get_rodents_choice_kb)  # <<< Добавлен импорт
 from states import ReportForm
 
 router = Router()
 
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
-    # ... (код cmd_start без изменений)
     await state.clear()
     await message.answer(
         "👋 <b>Здравствуйте!</b>\n\n"
@@ -24,7 +24,6 @@ async def cmd_start(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "cancel_all", StateFilter(ReportForm))
 async def cancel_handler_callback(call: CallbackQuery, state: FSMContext):
-    # ... (код cancel_handler_callback без изменений)
     await state.clear()
     await call.message.edit_text(
         "Действие отменено. Вы можете создать новую заявку в любой момент, введя /start.",
@@ -35,7 +34,6 @@ async def cancel_handler_callback(call: CallbackQuery, state: FSMContext):
 
 @router.message(F.text == "❌ Отменить", StateFilter(ReportForm))
 async def cancel_handler_text(message: Message, state: FSMContext):
-    # ... (код cancel_handler_text без изменений)
     await state.clear()
     await message.answer(
         "Действие отменено. Вы можете создать новую заявку в любой момент, введя /start.",
@@ -45,7 +43,6 @@ async def cancel_handler_text(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "go_back", StateFilter(ReportForm))
 async def back_handler_callback(call: CallbackQuery, state: FSMContext):
-    # ... (код back_handler_callback без изменений)
     current_state_str = await state.get_state()
     await call.answer()
 
@@ -63,12 +60,44 @@ async def back_handler_callback(call: CallbackQuery, state: FSMContext):
             "↩️ Вы вернулись к загрузке фото/видео.\n\nПожалуйста, прикрепите <b>фото или видео</b>.",
             reply_markup=get_back_cancel_kb()
         )
-    elif current_state == ReportForm.awaiting_location_choice:
+
+    # --- НОВЫЙ БЛОК: Назад с выбора грызунов ---
+    elif current_state == ReportForm.awaiting_rodents_choice:
         await state.set_state(ReportForm.awaiting_description)
+        data = await state.get_data()
+        # Восстанавливаем правильный пример текста
+        example_text = "<i>Например: «Контейнеры переполнены уже неделю».</i>"
+        if "воздуха" in data.get('complaint_type', ''):
+            example_text = "<i>Например: «Сильный химический запах...»</i>"
+
         await call.message.edit_text(
-            "↩️ Вы вернулись к вводу описания.\n\n<b>Добавьте краткое описание</b> проблемы.",
+            f"↩️ Вы вернулись к вводу описания.\n\n<b>Добавьте краткое описание</b> проблемы.\n\n{example_text}",
             reply_markup=get_back_cancel_kb()
         )
+    # --- КОНЕЦ НОВОГО БЛОКА ---
+
+    elif current_state == ReportForm.awaiting_location_choice:
+        # --- ИЗМЕНЕНО: Проверяем, куда идти назад ---
+        data = await state.get_data()
+        complaint_type = data.get('complaint_type', '')
+
+        if "мусора" in complaint_type.lower():
+            # Идем назад к грызунам
+            await state.set_state(ReportForm.awaiting_rodents_choice)
+            await call.message.edit_text(
+                "↩️ Вы вернулись к вопросу о грызунах.\n\n"
+                "<b>Были ли замечены грызуны (крысы, мыши)?</b>",
+                reply_markup=get_rodents_choice_kb(is_editing=False)  # Указываем, что это не редактирование
+            )
+        else:
+            # Идем назад к описанию (как и было)
+            await state.set_state(ReportForm.awaiting_description)
+            await call.message.edit_text(
+                "↩️ Вы вернулись к вводу описания.\n\n<b>Добавьте краткое описание</b> проблемы.",
+                reply_markup=get_back_cancel_kb()
+            )
+        # --- КОНЕЦ ИЗМЕНЕНИЙ ---
+
     elif current_state in [ReportForm.awaiting_location_geo.state, ReportForm.awaiting_location_address.state]:
         await state.set_state(ReportForm.awaiting_location_choice)
         await call.message.edit_text(

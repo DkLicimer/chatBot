@@ -1,6 +1,7 @@
 # file: keyboards.py
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+
 def get_start_kb() -> InlineKeyboardMarkup:
     """Клавиатура для /start"""
     return InlineKeyboardMarkup(
@@ -9,6 +10,7 @@ def get_start_kb() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="💨 Загрязнение воздуха / Запах", callback_data="report_type:air")]
         ]
     )
+
 
 def get_location_choice_kb() -> InlineKeyboardMarkup:
     """Клавиатура выбора способа геолокации"""
@@ -23,6 +25,7 @@ def get_location_choice_kb() -> InlineKeyboardMarkup:
         ]
     )
 
+
 def get_feedback_choice_kb() -> InlineKeyboardMarkup:
     """Клавиатура запроса обратной связи"""
     return InlineKeyboardMarkup(
@@ -36,6 +39,7 @@ def get_feedback_choice_kb() -> InlineKeyboardMarkup:
         ]
     )
 
+
 def get_back_cancel_kb() -> InlineKeyboardMarkup:
     """Клавиатура 'Назад' и 'Отменить' для текстовых шагов"""
     return InlineKeyboardMarkup(
@@ -47,6 +51,7 @@ def get_back_cancel_kb() -> InlineKeyboardMarkup:
         ]
     )
 
+
 def get_cancel_kb() -> InlineKeyboardMarkup:
     """Клавиатура 'Отменить' (используется при редактировании)"""
     return InlineKeyboardMarkup(
@@ -54,6 +59,30 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="❌ Отменить заявку", callback_data="cancel_all")]
         ]
     )
+
+
+# --- НОВАЯ КЛАВИАТУРА ---
+def get_rodents_choice_kb(is_editing: bool = False) -> InlineKeyboardMarkup:
+    """Клавиатура 'Есть ли грызуны?'"""
+
+    # Условная кнопка "Назад"
+    # При редактировании - ведем на сводку, при заполнении - используем "go_back"
+    back_button_callback = "edit:back_to_confirm" if is_editing else "go_back"
+    back_button = InlineKeyboardButton(text="⬅️ Назад", callback_data=back_button_callback)
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Да, есть", callback_data="rodents:yes"),
+                InlineKeyboardButton(text="Нет", callback_data="rodents:no")
+            ],
+            [
+                back_button,  # Условная кнопка
+                InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_all")
+            ]
+        ]
+    )
+
 
 def get_confirmation_kb() -> InlineKeyboardMarkup:
     """Клавиатура 'Подтвердить / Редактировать'"""
@@ -65,15 +94,29 @@ def get_confirmation_kb() -> InlineKeyboardMarkup:
         ]
     )
 
-def get_edit_kb() -> InlineKeyboardMarkup:
+
+# --- ИЗМЕНЕННАЯ КЛАВИАТУРА ---
+def get_edit_kb(is_garbage_report: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура выбора поля для редактирования"""
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📷 Фото / Видео", callback_data="edit:media")],
-            [InlineKeyboardButton(text="📝 Описание", callback_data="edit:description")],
-            [InlineKeyboardButton(text="🗺️ Местоположение", callback_data="edit:location")],
-            [InlineKeyboardButton(text="🔔 Статус обратной связи", callback_data="edit:feedback_choice")],
-            [InlineKeyboardButton(text="👤 Контактные данные", callback_data="edit:contacts")],
-            [InlineKeyboardButton(text="✅ Готово, назад к сводке", callback_data="edit:back_to_confirm")]
-        ]
-    )
+
+    # Создаем базовый список кнопок
+    keyboard_buttons = [
+        [InlineKeyboardButton(text="📷 Фото / Видео", callback_data="edit:media")],
+        [InlineKeyboardButton(text="📝 Описание", callback_data="edit:description")],
+    ]
+
+    # Условная кнопка
+    if is_garbage_report:
+        keyboard_buttons.append(
+            [InlineKeyboardButton(text="🐹 Наличие грызунов", callback_data="edit:rodents")]
+        )
+
+    # Добавляем остальные кнопки
+    keyboard_buttons.extend([
+        [InlineKeyboardButton(text="🗺️ Местоположение", callback_data="edit:location")],
+        [InlineKeyboardButton(text="🔔 Статус обратной связи", callback_data="edit:feedback_choice")],
+        [InlineKeyboardButton(text="👤 Контактные данные", callback_data="edit:contacts")],
+        [InlineKeyboardButton(text="✅ Готово, назад к сводке", callback_data="edit:back_to_confirm")]
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
