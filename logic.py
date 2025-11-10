@@ -64,7 +64,6 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
             <p>{description.replace(chr(10), "<br>")}</p>
 """
 
-        # --- НОВОЕ: Грызуны ---
         if data.get('rodents') is not None:
             rodents_text = 'Да' if data.get('rodents') else 'Нет'
             html_body += f"<p><strong>Наличие грызунов:</strong> {rodents_text}</p>"
@@ -74,13 +73,18 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
             <ul>
                 <li><strong>Имя:</strong> {user_name}</li>
         """
-        if data.get('wants_feedback'):
+
+        # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+        if data.get('wants_feedback') is True:
             html_body += f"""
+                <li><strong><u>Обратная связь: Требуется</u></strong></li>
                 <li><strong>Телефон:</strong> {user_phone}</li>
                 <li><strong>Email:</strong> {user_email}</li>
             """
         else:
             html_body += "<li><i>Обратная связь не требуется</i></li>"
+        # --- КОНЕЦ ИЗМЕНЕНИЯ ---
+
         html_body += f"""
             </ul>
             <h3>Местоположение:</h3>
@@ -103,6 +107,7 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
 
 
 async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot):
+    # Эта функция НЕ изменилась, она уже работала правильно
     await state.set_state(ReportForm.awaiting_confirmation)
     data = await state.get_data()
 
@@ -118,26 +123,20 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
         logging.error("Invalid object passed to show_confirmation_summary")
         return
 
-    # --- НОВАЯ ЛОГИКА ОЧИСТКИ ---
-    # 1. Получаем ID старого медиа-сообщения из FSM
     old_media_msg_id = data.get('media_summary_message_id')
 
-    # 2. Удалить старое *текстовое* сообщение (если это был call)
     if text_message_to_delete_id:
         try:
             await bot.delete_message(chat_id, text_message_to_delete_id)
         except Exception:
-            pass  # Не страшно
+            pass
 
-    # 3. Удалить старое *медиа* сообщение (если оно было)
     if old_media_msg_id:
         try:
             await bot.delete_message(chat_id, old_media_msg_id)
         except Exception:
-            pass  # Тоже не страшно
-    # --- КОНЕЦ НОВОЙ ЛОГИКИ ОЧИСТКИ ---
+            pass
 
-    # 4. Форматируем данные для вывода
     safe_type = escape_html(data.get('complaint_type', 'Не указан'))
     safe_description = escape_html(data.get('description', 'Не указано'))
 
@@ -175,12 +174,10 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
 
     contact_status = "\n".join(contact_status_parts)
 
-    # ---  Грызуны ---
     rodents_status = ""
     rodents_data = data.get('rodents')
     if rodents_data is not None:
         rodents_status = f"<b>🐹 Наличие грызунов:</b> {'Да' if rodents_data else 'Нет'}"
-
 
     summary_text_parts = [
         "<b>🔍 Пожалуйста, проверьте и подтвердите вашу заявку:</b>\n",
@@ -189,7 +186,6 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
         f"<b>Описание:</b>\n{safe_description}",
     ]
 
-    # Добавление грызунов, если они есть
     if rodents_status:
         summary_text_parts.append(rodents_status)
 
@@ -200,24 +196,21 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
     ])
     summary_text = "\n\n".join(summary_text_parts)
 
-    # 5. Отправляем НОВОЕ медиа (если есть) и СОХРАНЯЕМ ID
     new_media_msg = None
     if file_id:
         try:
             if media_type == 'photo':
-                new_media_msg = await bot.send_photo(chat_id, file_id)  # Сохраняем ответ
+                new_media_msg = await bot.send_photo(chat_id, file_id)
             elif media_type == 'video':
-                new_media_msg = await bot.send_video(chat_id, file_id)  # Сохраняем ответ
+                new_media_msg = await bot.send_video(chat_id, file_id)
         except Exception as e:
             logging.error(f"Failed to send media in summary: {e}")
             summary_text += "\n\n❗️ (Не удалось загрузить превью медиа)"
 
-    # ---  Сохраняем ID нового медиа в FSM ---
     await state.update_data(
         media_summary_message_id=(new_media_msg.message_id if new_media_msg else None)
     )
 
-    # 6. Отправляем НОВУЮ текстовую сводку
     await bot.send_message(chat_id, summary_text, reply_markup=get_confirmation_kb())
 
 
@@ -243,15 +236,17 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
         f"<b>Имя:</b> {safe_name}"
     ]
 
-    if data.get('wants_feedback'):
+    # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+    if data.get('wants_feedback') is True:
+        caption_parts.append("<b>Обратная связь: <u>Требуется</u></b>")
         caption_parts.append(f"<b>Телефон:</b> {safe_phone}")
         caption_parts.append(f"<b>Email:</b> {safe_email}")
     else:
         caption_parts.append("<i>Обратная связь не требуется</i>")
+    # --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
     caption_parts.append(f"<b>Описание:</b>\n{safe_description}")
 
-    # ---Грызуны ---
     rodents_data = data.get('rodents')
     if rodents_data is not None:
         rodents_text = 'Да' if rodents_data else 'Нет'
