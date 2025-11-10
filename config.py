@@ -28,3 +28,15 @@ except (ValueError, TypeError):
 # --- Регулярные выражения для валидации ---
 PHONE_REGEX = r"^\+?[78][-\s(]*\d{3}[-\s)]*\d{3}[-\s]*\d{2}[-\s]*\d{2}$"
 EMAIL_REGEX = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+
+# --- ⬇️ НОВЫЙ БЛОК: Лимиты на размер файлов ⬇️ ---
+# Максимальный размер файла в Мегабайтах (Telegram Bot API лимит = 50MB)
+# Ставим 20MB, чтобы избежать таймаутов при скачивании и отправке на email
+MAX_VIDEO_SIZE_MB = 20
+MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024
+
+# Лимит для "кружков" (они короткие, до 1 мин)
+# Лимит Telegram ~8MB. Ставим 10MB с запасом.
+MAX_VIDEO_NOTE_SIZE_MB = 10
+MAX_VIDEO_NOTE_SIZE_BYTES = MAX_VIDEO_NOTE_SIZE_MB * 1024 * 1024
+# --- ⬆️ КОНЕЦ НОВОГО БЛОКА ⬆️ ---

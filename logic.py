@@ -19,42 +19,44 @@ from states import ReportForm
 
 
 def escape_html(text: str) -> str:
+    # ... (код без изменений) ...
     if not isinstance(text, str):
         return ""
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return text.replace("&", "&").replace("<", "<").replace(">", ">")
 
 
 def send_email_sync(msg: MIMEMultipart):
+    # ... (код без изменений) ...
     with smtplib.SMTP_SSL(SMTP_SERVER, int(SMTP_PORT)) as server:
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
 
 
 async def send_email_notification(data: dict, file_content: BytesIO | None, file_name: str | None):
+    # ... (код без изменений) ...
     if not all([SMTP_SERVER, SMTP_PORT, SENDER_EMAIL, SENDER_PASSWORD, RECIPIENT_EMAIL]):
         logging.warning("Настройки SMTP для отправки email не сконфигурированы в .env. Письмо не будет отправлено.")
         return
     try:
         user_info = escape_html(data.get('user_info', 'Не указан'))
         user_name = escape_html(data.get('name', 'Не указано'))
-        user_phone = escape_html(data.get('phone', 'Не указано'))
-        user_email = escape_html(data.get('email', 'Не указано'))
+        raw_phone = data.get('phone')
+        user_phone = escape_html(raw_phone) if raw_phone else "Не указан"
+        raw_email = data.get('email')
+        user_email = escape_html(raw_email) if raw_email else "Не указан"
         complaint_type = escape_html(data.get('complaint_type', 'Тип не указан'))
         description = escape_html(data.get('description', 'Без описания'))
-
         location_info = "Не указано"
         if data.get('latitude') and data.get('longitude'):
             lat = data['latitude']
             lon = data['longitude']
-            location_info = f'<a href="http://googleusercontent.com/maps/google.com/1{lat},{lon}">Открыть на карте (Геометка)</a>'
+            location_info = f'<a href="https://www.google.com/maps/search/?api=1&query={lat},{lon}">Открыть на карте (Геометка)</a>'
         elif data.get('address_text'):
             location_info = f"<b>Адрес (вручную):</b> {escape_html(data.get('address_text'))}"
-
         msg = MIMEMultipart()
         msg['From'] = SENDER_EMAIL
         msg['To'] = RECIPIENT_EMAIL
         msg['Subject'] = f"Новая заявка ({complaint_type}) от {user_name}"
-
         html_body = f"""
         <html>
         <body>
@@ -63,18 +65,14 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
             <h3>Описание проблемы:</h3>
             <p>{description.replace(chr(10), "<br>")}</p>
 """
-
         if data.get('rodents') is not None:
             rodents_text = 'Да' if data.get('rodents') else 'Нет'
             html_body += f"<p><strong>Наличие грызунов:</strong> {rodents_text}</p>"
-
         html_body += f"""
             <h3>Контактные данные:</h3>
             <ul>
                 <li><strong>Имя:</strong> {user_name}</li>
-        """
-
-        # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+"""
         if data.get('wants_feedback') is True:
             html_body += f"""
                 <li><strong><u>Обратная связь: Требуется</u></strong></li>
@@ -83,8 +81,6 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
             """
         else:
             html_body += "<li><i>Обратная связь не требуется</i></li>"
-        # --- КОНЕЦ ИЗМЕНЕНИЯ ---
-
         html_body += f"""
             </ul>
             <h3>Местоположение:</h3>
@@ -93,13 +89,11 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
         </html>
         """
         msg.attach(MIMEText(html_body, 'html'))
-
         if file_content and file_name:
             file_content.seek(0)
             attachment = MIMEApplication(file_content.read(), Name=file_name)
             attachment['Content-Disposition'] = f'attachment; filename="{file_name}"'
             msg.attach(attachment)
-
         await asyncio.to_thread(send_email_sync, msg)
         logging.info(f"Заявка успешно отправлена на email: {RECIPIENT_EMAIL}")
     except Exception as e:
@@ -107,13 +101,11 @@ async def send_email_notification(data: dict, file_content: BytesIO | None, file
 
 
 async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot):
-    # Эта функция НЕ изменилась, она уже работала правильно
+    # ... (код без изменений) ...
     await state.set_state(ReportForm.awaiting_confirmation)
     data = await state.get_data()
-
     chat_id = None
     text_message_to_delete_id = None
-
     if isinstance(message_or_call, Message):
         chat_id = message_or_call.chat.id
     elif isinstance(message_or_call, CallbackQuery):
@@ -122,80 +114,70 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
     else:
         logging.error("Invalid object passed to show_confirmation_summary")
         return
-
     old_media_msg_id = data.get('media_summary_message_id')
-
     if text_message_to_delete_id:
         try:
             await bot.delete_message(chat_id, text_message_to_delete_id)
         except Exception:
             pass
-
     if old_media_msg_id:
         try:
             await bot.delete_message(chat_id, old_media_msg_id)
         except Exception:
             pass
-
     safe_type = escape_html(data.get('complaint_type', 'Не указан'))
     safe_description = escape_html(data.get('description', 'Не указано'))
-
     media_status = "❌ Не прикреплено"
     media_type = data.get('media_type')
-    file_id = data.get(f'{media_type}_id')
-
-    if file_id:
-        media_status = f"✅ {'Фото' if media_type == 'photo' else 'Видео'} прикреплено (см. выше)"
-
+    file_id = None
+    if media_type == 'photo':
+        file_id = data.get('photo_id')
+        media_status = "✅ Фото прикреплено (см. выше)"
+    elif media_type == 'video':
+        file_id = data.get('video_id')
+        media_status = "✅ Видео прикреплено (см. выше)"
+    elif media_type == 'video_note':
+        file_id = data.get('video_note_id')
+        media_status = "✅ Видео-кружок прикреплен (см. выше)"
     loc_status = "❌ Не указано"
     if data.get('latitude') and data.get('longitude'):
         loc_status = f"✅ Геометка: ({data['latitude']:.5f}, {data['longitude']:.5f})"
     elif data.get('address_text'):
         loc_status = f"✅ Адрес: {escape_html(data.get('address_text'))}"
-
     safe_name = escape_html(data.get('name', '⚠️ <b>Не указано</b>'))
     contact_status_parts = [f"<b>Имя:</b> {safe_name}"]
     wants_feedback = data.get('wants_feedback')
-
     if wants_feedback is True:
         user_email = data.get('email')
         user_phone = data.get('phone')
         safe_email = escape_html(user_email) if user_email else "⚠️ <b>Не указан</b>"
         safe_phone = escape_html(user_phone) if user_phone else "⚠️ <b>Не указан</b>"
-
         contact_status_parts.append("Обратная связь: <b>Требуется</b>")
         contact_status_parts.append(f"<b>Email:</b> {safe_email}")
         contact_status_parts.append(f"<b>Телефон:</b> {safe_phone}")
-
     elif wants_feedback is False:
         contact_status_parts.append("Обратная связь: <b>Не требуется</b>")
     else:
         contact_status_parts.append("<i>(Выбор обратной связи не сделан)</i>")
-
     contact_status = "\n".join(contact_status_parts)
-
     rodents_status = ""
     rodents_data = data.get('rodents')
     if rodents_data is not None:
         rodents_status = f"<b>🐹 Наличие грызунов:</b> {'Да' if rodents_data else 'Нет'}"
-
     summary_text_parts = [
         "<b>🔍 Пожалуйста, проверьте и подтвердите вашу заявку:</b>\n",
         f"<b>Тип:</b> {safe_type}",
         f"<b>Медиа:</b> {media_status}",
         f"<b>Описание:</b>\n{safe_description}",
     ]
-
     if rodents_status:
         summary_text_parts.append(rodents_status)
-
     summary_text_parts.extend([
         f"<b>Местоположение:</b> {loc_status}",
         "\n<b>Контакты:</b>",
         contact_status
     ])
     summary_text = "\n\n".join(summary_text_parts)
-
     new_media_msg = None
     if file_id:
         try:
@@ -203,18 +185,19 @@ async def show_confirmation_summary(message_or_call, state: FSMContext, bot: Bot
                 new_media_msg = await bot.send_photo(chat_id, file_id)
             elif media_type == 'video':
                 new_media_msg = await bot.send_video(chat_id, file_id)
+            elif media_type == 'video_note':
+                new_media_msg = await bot.send_video_note(chat_id, file_id)
         except Exception as e:
             logging.error(f"Failed to send media in summary: {e}")
             summary_text += "\n\n❗️ (Не удалось загрузить превью медиа)"
-
     await state.update_data(
         media_summary_message_id=(new_media_msg.message_id if new_media_msg else None)
     )
-
     await bot.send_message(chat_id, summary_text, reply_markup=get_confirmation_kb())
 
 
-async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
+# --- ⬇️ БЛОК ИЗМЕНЕН ⬇️ ---
+async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot) -> bool:
     await bot.send_chat_action(chat_id=call.from_user.id, action=ChatAction.TYPING)
 
     data = await state.get_data()
@@ -226,8 +209,13 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
     safe_type = escape_html(data.get('complaint_type', 'Не указан').replace("🗑 ", "").replace("💨 ", ""))
     safe_name = escape_html(data.get('name', 'Не указано'))
     safe_user_info = escape_html(user_info)
-    safe_phone = escape_html(data.get('phone', ''))
-    safe_email = escape_html(data.get('email', ''))
+
+    raw_phone = data.get('phone')
+    safe_phone = escape_html(raw_phone) if raw_phone else "Не указан"
+
+    raw_email = data.get('email')
+    safe_email = escape_html(raw_email) if raw_email else "Не указан"
+
     safe_description = escape_html(data.get('description', 'Не указано'))
 
     caption_parts = [
@@ -236,14 +224,12 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
         f"<b>Имя:</b> {safe_name}"
     ]
 
-    # --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
     if data.get('wants_feedback') is True:
         caption_parts.append("<b>Обратная связь: <u>Требуется</u></b>")
         caption_parts.append(f"<b>Телефон:</b> {safe_phone}")
         caption_parts.append(f"<b>Email:</b> {safe_email}")
     else:
         caption_parts.append("<i>Обратная связь не требуется</i>")
-    # --- КОНЕЦ ИЗМЕНЕНИЯ ---
 
     caption_parts.append(f"<b>Описание:</b>\n{safe_description}")
 
@@ -266,7 +252,14 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
         file_content_for_email = None
         file_name_for_email = None
         media_type = data.get('media_type')
-        file_id = data.get('photo_id') if media_type == 'photo' else data.get('video_id')
+
+        file_id = None
+        if media_type == 'photo':
+            file_id = data.get('photo_id')
+        elif media_type == 'video':
+            file_id = data.get('video_id')
+        elif media_type == 'video_note':
+            file_id = data.get('video_note_id')
 
         if file_id:
             file_info = await bot.get_file(file_id)
@@ -279,6 +272,11 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
             await bot.send_photo(chat_id=admin_group_id, photo=file_id, caption=caption)
         elif media_type == 'video':
             await bot.send_video(chat_id=admin_group_id, video=file_id, caption=caption)
+        elif media_type == 'video_note':
+            await bot.send_video_note(chat_id=admin_group_id, video_note=file_id)
+            await bot.send_message(chat_id=admin_group_id, text=caption)
+        else:
+            await bot.send_message(chat_id=admin_group_id, text=caption)
 
         if data.get('latitude'):
             await bot.send_location(
@@ -289,12 +287,10 @@ async def send_final_report(call: CallbackQuery, state: FSMContext, bot: Bot):
 
         asyncio.create_task(send_email_notification(data, file_content_for_email, file_name_for_email))
 
+        return True  # <<< ВОЗВРАЩАЕМ УСПЕХ
+
     except Exception as e:
         logging.error(f"Не удалось отправить заявку в группу {admin_group_id}: {e}")
-        await call.message.answer(
-            "❗️ <b>Произошла ошибка</b>\n\n"
-            "К сожалению, не удалось отправить вашу заявку. Пожалуйста, попробуйте снова через несколько минут.",
-            reply_markup=ReplyKeyboardRemove()
-        )
-    finally:
-        await state.clear()
+        # --- Сообщение пользователю и очистка FSM удалены отсюда ---
+        return False  # <<< ВОЗВРАЩАЕМ НЕУДАЧУ
+# --- ⬆️ КОНЕЦ ИЗМЕНЕННОГО БЛОКА ⬆️ ---

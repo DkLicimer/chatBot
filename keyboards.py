@@ -7,7 +7,12 @@ def get_start_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🗑 Скопление мусора", callback_data="report_type:garbage")],
-            [InlineKeyboardButton(text="💨 Загрязнение воздуха / Запах", callback_data="report_type:air")]
+            [InlineKeyboardButton(text="💨 Загрязнение воздуха / Запах", callback_data="report_type:air")],
+            # --- ИЗМЕНЕНИЕ: Добавлена кнопка-ссылка ---
+            [InlineKeyboardButton(
+                text="🗓️ Узнать график вывоза мусора",
+                url="https://oleron.plus/index.php/grafiki-transportirovki-tko/"
+            )]
         ]
     )
 
@@ -21,7 +26,9 @@ def get_location_choice_kb() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="go_back"),
                 InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_all")
-            ]
+            ],
+            # --- ИЗМЕНЕНИЕ: Добавлена кнопка "Домой" ---
+            [InlineKeyboardButton(text="🏠 На главный экран", callback_data="go_to_start")]
         ]
     )
 
@@ -35,7 +42,9 @@ def get_feedback_choice_kb() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="go_back"),
                 InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_all")
-            ]
+            ],
+            # --- ИЗМЕНЕНИЕ: Добавлена кнопка "Домой" ---
+            [InlineKeyboardButton(text="🏠 На главный экран", callback_data="go_to_start")]
         ]
     )
 
@@ -47,7 +56,9 @@ def get_back_cancel_kb() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="⬅️ Назад", callback_data="go_back"),
                 InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_all")
-            ]
+            ],
+            # --- ИЗМЕНЕНИЕ: Добавлена кнопка "Домой" ---
+            [InlineKeyboardButton(text="🏠 На главный экран", callback_data="go_to_start")]
         ]
     )
 
@@ -61,7 +72,23 @@ def get_cancel_kb() -> InlineKeyboardMarkup:
     )
 
 
-# --- НОВАЯ КЛАВИАТУРА ---
+# --- ⬇️ НОВАЯ КЛАВИАТУРА ⬇️ ---
+def get_skip_email_kb() -> InlineKeyboardMarkup:
+    """Клавиатура для шага ввода email (с кнопкой 'Пропустить')"""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="➡️ Пропустить ввод Email", callback_data="skip:email")],
+            [
+                InlineKeyboardButton(text="⬅️ Назад", callback_data="go_back"),
+                InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_all")
+            ],
+            [InlineKeyboardButton(text="🏠 На главный экран", callback_data="go_to_start")]
+        ]
+    )
+# --- ⬆️ КОНЕЦ НОВОЙ КЛАВИАТУРЫ ⬆️ ---
+
+
+# --- ИЗМЕНЕННАЯ КЛАВИАТУРА ---
 def get_rodents_choice_kb(is_editing: bool = False) -> InlineKeyboardMarkup:
     """Клавиатура 'Есть ли грызуны?'"""
 
@@ -79,7 +106,9 @@ def get_rodents_choice_kb(is_editing: bool = False) -> InlineKeyboardMarkup:
             [
                 back_button,  # Условная кнопка
                 InlineKeyboardButton(text="❌ Отменить", callback_data="cancel_all")
-            ]
+            ],
+            # --- ИЗМЕНЕНИЕ: Добавлена кнопка "Домой" ---
+            [InlineKeyboardButton(text="🏠 На главный экран", callback_data="go_to_start")]
         ]
     )
 
@@ -90,7 +119,8 @@ def get_confirmation_kb() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [InlineKeyboardButton(text="✅ Все верно, отправить", callback_data="confirm:send")],
             [InlineKeyboardButton(text="✏️ Редактировать", callback_data="confirm:edit")],
-            [InlineKeyboardButton(text="❌ Отменить заявку", callback_data="cancel_all")]
+            # --- ИЗМЕНЕНИЕ: "Отменить" заменено на "Домой" ---
+            [InlineKeyboardButton(text="🏠 На главный экран", callback_data="go_to_start")]
         ]
     )
 

@@ -5,7 +5,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardRemove
 
 from keyboards import (get_start_kb, get_back_cancel_kb, get_location_choice_kb,
-                       get_feedback_choice_kb, get_rodents_choice_kb)  # <<< Добавлен импорт
+                       get_feedback_choice_kb, get_rodents_choice_kb,
+                       get_skip_email_kb)  # <<< Добавлен импорт (уже был)
 from states import ReportForm
 
 router = Router()
@@ -20,6 +21,26 @@ async def cmd_start(message: Message, state: FSMContext):
         reply_markup=get_start_kb()
     )
     await state.set_state(ReportForm.awaiting_type)
+
+
+# --- ⬇️ НОВЫЙ ХЭНДЛЕР ⬇️ ---
+@router.callback_query(F.data == "go_to_start", StateFilter(ReportForm))
+async def go_to_start_handler(call: CallbackQuery, state: FSMContext):
+    """
+    Обработчик для кнопки 'На главный экран'.
+    Сбрасывает состояние и показывает стартовое сообщение.
+    """
+    await state.clear()
+    await call.message.edit_text(
+        "👋 <b>Здравствуйте!</b>\n\n"
+        "Я помогу вам сообщить об экологической проблеме. Пожалуйста, выберите тип проблемы:",
+        reply_markup=get_start_kb()
+    )
+    await call.answer()
+    await state.set_state(ReportForm.awaiting_type)
+
+
+# --- ⬆️ КОНЕЦ НОВОГО ХЭНДЛЕРА ⬆️ ---
 
 
 @router.callback_query(F.data == "cancel_all", StateFilter(ReportForm))
@@ -47,6 +68,7 @@ async def back_handler_callback(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
     current_state = current_state_str
+    data = await state.get_data()  # <<< Получаем данные в начале
 
     if current_state == ReportForm.awaiting_media:
         await state.set_state(ReportForm.awaiting_type)
@@ -57,18 +79,22 @@ async def back_handler_callback(call: CallbackQuery, state: FSMContext):
     elif current_state == ReportForm.awaiting_description:
         await state.set_state(ReportForm.awaiting_media)
         await call.message.edit_text(
-            "↩️ Вы вернулись к загрузке фото/видео.\n\nПожалуйста, прикрепите <b>фото или видео</b>.",
+            "↩️ Вы вернулись к загрузке фото/видео.\n\n"
+            "Пожалуйста, прикрепите <b>фото, видео или видео-кружок</b>.",  # <-- Изменен текст
             reply_markup=get_back_cancel_kb()
         )
 
     # --- НОВЫЙ БЛОК: Назад с выбора грызунов ---
     elif current_state == ReportForm.awaiting_rodents_choice:
         await state.set_state(ReportForm.awaiting_description)
-        data = await state.get_data()
+        # data = await state.get_data() # <-- Уже получили
         # Восстанавливаем правильный пример текста
         example_text = "<i>Например: «Контейнеры переполнены уже неделю».</i>"
-        if "воздуха" in data.get('complaint_type', ''):
+
+        # --- ⬇️ ИЗМЕНЕНИЕ: Проверяем флаг ⬇️ ---
+        if not data.get('is_garbage_report'):
             example_text = "<i>Например: «Сильный химический запах...»</i>"
+        # --- ⬆️ КОНЕЦ ИЗМЕНЕНИЯ ⬆️ ---
 
         await call.message.edit_text(
             f"↩️ Вы вернулись к вводу описания.\n\n<b>Добавьте краткое описание</b> проблемы.\n\n{example_text}",
@@ -77,11 +103,10 @@ async def back_handler_callback(call: CallbackQuery, state: FSMContext):
     # --- КОНЕЦ НОВОГО БЛОКА ---
 
     elif current_state == ReportForm.awaiting_location_choice:
-        # --- ИЗМЕНЕНО: Проверяем, куда идти назад ---
-        data = await state.get_data()
-        complaint_type = data.get('complaint_type', '')
+        # --- ⬇️ ИЗМЕНЕНИЕ: Проверяем флаг ⬇️ ---
+        # data = await state.get_data() # <-- Уже получили
 
-        if "мусора" in complaint_type.lower():
+        if data.get('is_garbage_report') is True:
             # Идем назад к грызунам
             await state.set_state(ReportForm.awaiting_rodents_choice)
             await call.message.edit_text(
@@ -92,11 +117,17 @@ async def back_handler_callback(call: CallbackQuery, state: FSMContext):
         else:
             # Идем назад к описанию (как и было)
             await state.set_state(ReportForm.awaiting_description)
+
+            # --- Восстанавливаем правильный пример текста ---
+            example_text = "<i>Например: «Контейнеры переполнены...»</i>"
+            if not data.get('is_garbage_report'):
+                example_text = "<i>Например: «Сильный химический запах...»</i>"
+
             await call.message.edit_text(
-                "↩️ Вы вернулись к вводу описания.\n\n<b>Добавьте краткое описание</b> проблемы.",
+                f"↩️ Вы вернулись к вводу описания.\n\n<b>Добавьте краткое описание</b> проблемы.\n\n{example_text}",
                 reply_markup=get_back_cancel_kb()
             )
-        # --- КОНЕЦ ИЗМЕНЕНИЙ ---
+        # --- ⬆️ КОНЕЦ ИЗМЕНЕНИЙ ⬆️ ---
 
     elif current_state in [ReportForm.awaiting_location_geo.state, ReportForm.awaiting_location_address.state]:
         await state.set_state(ReportForm.awaiting_location_choice)
@@ -125,7 +156,8 @@ async def back_handler_callback(call: CallbackQuery, state: FSMContext):
     elif current_state == ReportForm.awaiting_contact_phone:
         await state.set_state(ReportForm.awaiting_contact_email)
         await call.message.edit_text(
+            # --- ИЗМЕНЕНИЕ: Добавлена новая клавиатура и текст ---
             "↩️ Вы вернулись к вводу email.\n\nПожалуйста, введите ваш <b>email-адрес</b>."
-            "\n\n<i>Например: example@mail.ru</i>",
-            reply_markup=get_back_cancel_kb()
+            "\n\n<i>Например: example@mail.ru\n(Можно пропустить, если у вас его нет)</i>",
+            reply_markup=get_skip_email_kb()  # Используем новую клавиатуру
         )
